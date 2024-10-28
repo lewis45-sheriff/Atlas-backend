@@ -3,9 +3,9 @@ from rest_framework.response import Response
 from rest_framework.decorators import api_view
 from django.contrib.auth import authenticate, get_user_model
 from django.http import Http404
-from ..serializers import UserSerializer, ProductSerializer, ProductDetailSerializer
+from ..serializers import UserSerializer, ProductSerializer, ProductDetailSerializer ,OrderSerializer
 from rest_framework.authtoken.models import Token
-from store1.models import Product
+from store1.models import Product ,Order
 
 User = get_user_model()
 
@@ -50,3 +50,9 @@ def get_product_by_id(request, product_id):
         return Response(serializer.data)  # Return serialized product data
     except Product.DoesNotExist:
         raise Http404("Product not found")  # Handle case where product doesn't exist
+
+@api_view(['GET'])
+def get_orders(request):
+    orders = Order.objects.all()  # Retrieve all orders
+    serializer = OrderSerializer(orders, many=True)  # Serialize the queryset
+    return Response(serializer.data)  #
