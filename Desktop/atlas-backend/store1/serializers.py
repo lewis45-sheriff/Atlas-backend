@@ -4,7 +4,7 @@ from .models import Category, Product, User, Order, OrderItem
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['username', 'password', 'email']
+        fields = ['id','username', 'password', 'email']
 
     def create(self, validated_data):
         user = User(**validated_data)
@@ -25,11 +25,11 @@ class ProductSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'category_name', 'price', 'is_new', 'is_best_seller', 'description', 'avatar']
 
 class ProductDetailSerializer(serializers.ModelSerializer):
-    category = CategorySerializer(read_only=True)  # Nested serializer for category details
+    category_name = CategorySerializer(read_only=True)  # Nested serializer for category details
 
-    class Meta:
+    class Meta: 
         model = Product
-        fields = ['id', 'name', 'category', 'price', 'is_new', 'is_best_seller', 'avatar', 'description', 'stock']
+        fields = ['id', 'name',  'category_name','price', 'is_new', 'is_best_seller', 'avatar', 'description', 'stock']
 
 class OrderItemSerializer(serializers.ModelSerializer):
     product = ProductSerializer()  # Nesting the ProductSerializer
