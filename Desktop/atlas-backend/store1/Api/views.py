@@ -3,9 +3,10 @@ from rest_framework.response import Response
 from rest_framework.decorators import api_view
 from django.contrib.auth import authenticate, get_user_model
 from django.http import Http404
-from ..serializers import UserSerializer, ProductSerializer, ProductDetailSerializer ,OrderSerializer
+from ..serializers import UserSerializer, ProductSerializer, ProductDetailSerializer ,OrderSerializer, CategorySerializer
 from rest_framework.authtoken.models import Token
 from store1.models import Product ,Order
+from django.shortcuts import get_object_or_404
 
 User = get_user_model()
 
@@ -56,3 +57,14 @@ def get_orders(request):
     orders = Order.objects.all()  # Retrieve all orders
     serializer = OrderSerializer(orders, many=True)  # Serialize the queryset
     return Response(serializer.data)  #
+@api_view(['GET'])
+def get_category_products(request, category_name):
+    # Retrieve products belonging to the specified category by name
+    products = Product.objects.filter(category__name=category_name)  # Filter products by category name
+    serializer =ProductSerializer (products, many=True)  # Serialize the queryset
+
+    # Check if any products were found
+    if not products.exists():
+        return Response({"message": "No products found for this category."}, status=status.HTTP_404_NOT_FOUND)
+
+    return Response(serializer.data)  # Return serialized products data
