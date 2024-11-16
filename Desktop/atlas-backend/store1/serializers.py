@@ -81,5 +81,6 @@ class OrderSerializer(serializers.ModelSerializer):
             product.stock -= quantity
             product.save()
             OrderItem.objects.create(order=order, product=product, quantity=quantity)
+            
 
         return order
