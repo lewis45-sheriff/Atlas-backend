@@ -21,14 +21,14 @@ class Category(models.Model):
     name = models.CharField(max_length=255)
     def __str__(self):
         return self.name
-    
 class Subcategory(models.Model):
     name = models.CharField(max_length=255)
-    category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name="subcategories", null=True, blank=True)
+    description = models.TextField(blank=True)
+    category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name="subcategories",blank=True, null=True)
 
     def __str__(self):
         return self.name
-# models.py
+
 
 
 
@@ -36,7 +36,7 @@ class Subcategory(models.Model):
 class Product(models.Model):
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
-    # category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name="products")
+    category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name="products", blank=True, null=True)
     sub_category = models.ForeignKey(Subcategory, on_delete=models.CASCADE, related_name="products", blank=True, null=True)
     price = models.DecimalField(max_digits=10, decimal_places=2)
     stock = models.PositiveIntegerField(default=0)
@@ -52,22 +52,35 @@ class Product(models.Model):
     def __str__(self):
         return self.name
 
-# Order model representing a customer's order
+
+from django.db import models
+import uuid
+
 class Order(models.Model):
     class StatusChoices(models.TextChoices):
         PENDING = 'pending', 'Pending'
         CONFIRMED = 'confirmed', 'Confirmed'
         CANCELLED = 'cancelled', 'Cancelled'
-    
+
     id = models.BigAutoField(primary_key=True)
     order_id = models.UUIDField(default=uuid.uuid4, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
     status = models.CharField(max_length=10, choices=StatusChoices.choices, default=StatusChoices.PENDING)
-    products = models.ManyToManyField(Product, through="OrderItem", related_name="orders")
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="orders", null= True, blank=True)
+    products = models.ManyToManyField('Product', through="OrderItem", related_name="orders")
+    user = models.ForeignKey('User', on_delete=models.CASCADE, related_name="orders", null=True, blank=True)
+
+    # Checkout information
+    first_name = models.CharField(max_length=100, default='Unknown')
+
+    last_name = models.CharField(max_length=100 , default= "Unknown")
+    street_address = models.CharField(max_length=255, default="Unknown")
+    phone_number = models.CharField(max_length=15 , default= "Uknown")
+    
+
 
     def __str__(self):
         return f"Order {self.order_id}"
+
 
 # OrderItem model to track product quantities in each order
 class OrderItem(models.Model):

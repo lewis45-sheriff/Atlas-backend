@@ -3,9 +3,9 @@ from rest_framework.response import Response
 from rest_framework.decorators import api_view
 from django.contrib.auth import authenticate, get_user_model
 from django.http import Http404
-from ..serializers import UserSerializer, ProductSerializer, ProductDetailSerializer ,OrderSerializer, CategorySerializer, SubCategorySerializer
+from ..serializers import UserSerializer, ProductSerializer, ProductDetailSerializer, OrderSerializer, CategorySerializer, SubCategorySerializer
 from rest_framework.authtoken.models import Token
-from store1.models import Product ,Order, Category
+from store1.models import Product, Order, Category
 from django.shortcuts import get_object_or_404
 from rest_framework.parsers import JSONParser
 from io import BytesIO
@@ -111,24 +111,34 @@ def get_category_subcategories(request, category_id):
     return Response(subcategory_data)
 
 
-@api_view(['POST'])
+@api_view(['POST', 'GET'])
 def create_order(request):
     if request.method == 'POST':
-        print(request.data)
-        json_data = json.dumps(request.data)
+        # Ensure the user is passed in the request
+        user = request.data.get('user')  # Expect user ID to be provided in the request
+        
+        # Ensure that user exists
+        if not user:
+            return Response({"error": "User is required to create an order."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Step 2: Convert the JSON string to bytes
+        try:
+            user_instance = User.objects.get(id=user)
+        except User.DoesNotExist:
+            return Response({"error": "User not found."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Proceed with deserializing the order data
+        json_data = json.dumps(request.data)
         byte_data = json_data.encode('utf-8')
         stream = BytesIO(byte_data)
 
-        # Deserializing JSON data into a Product instance
+        # Deserialize the data
         data = JSONParser().parse(stream)
+        data['user'] = user_instance.id  # Add user information to the order data
+
         serializer = OrderSerializer(data=data)
-        print(serializer.is_valid())
-        
+
         if serializer.is_valid():
-            serializer.save()  # Saves the order to the database
+            # Save the order with user information
+            serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-   
-    

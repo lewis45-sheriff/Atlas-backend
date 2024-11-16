@@ -91,17 +91,18 @@ WSGI_APPLICATION = 'store.wsgi.application'
 
 env = environ.Env()
 environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
-
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': env('DB_NAME'),
-        'USER': env('DB_USER'),
-        'PASSWORD': env('DB_PASSWORD'),
-        'HOST': env('DB_HOST'),
-        'PORT': env('DB_PORT'),
+        'ENGINE': 'django.db.backends.mysql',  # Use MySQL backend
+        'NAME': 'atlas',
+        'USER': 'root',
+        'PASSWORD': 'root',
+        'HOST': 'localhost', # Host of the MariaDB service
+        'PORT': '3308',     # Port for MariaDB
     }
 }
+
+
 
 
 # Password validation
