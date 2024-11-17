@@ -27,7 +27,7 @@ def register(request):
     
     return Response({'success': False, 'message': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
-@api_view(['POST'])
+@api_view(['POST','GET'])
 def login_view(request):
     username = request.data.get('username')  # Use username instead of email
     password = request.data.get('password')
@@ -82,10 +82,14 @@ def get_category_products(request, id, type=None):
 
 @api_view(['GET'])
 def Get_categories(request):
-    categories = Category.objects.all()  # Use a lowercase variable for the queryset
+    name = request.query_params.get('name', None)  # Get the 'name' query parameter
+    if name:
+        categories = Category.objects.filter(name__icontains=name)  # Filter categories by name
+    else:
+        categories = Category.objects.all()  # If no 'name' parameter, get all categories
+    
     serializer = CategorySerializer(categories, many=True)  # Serialize the queryset
     return Response(serializer.data)  # Return serialized data
-
 
 @api_view(['GET'])
 def get_category_subcategories(request, category_id):

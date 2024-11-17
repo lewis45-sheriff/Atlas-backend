@@ -24,10 +24,12 @@ class Category(models.Model):
 class Subcategory(models.Model):
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
-    category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name="subcategories",blank=True, null=True)
+    category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name="subcategories", blank=True, null=True)
+    category_name = models.CharField(max_length=255, blank=True, null=True, help_text="Manually input the category name if not selecting from the list")
 
     def __str__(self):
-        return self.name
+        # If category is selected, display its name; otherwise, display the manually entered category name
+        return self.category.name if self.category else self.category_name or self.name
 
 
 
@@ -75,6 +77,7 @@ class Order(models.Model):
     last_name = models.CharField(max_length=100 , default= "Unknown")
     street_address = models.CharField(max_length=255, default="Unknown")
     phone_number = models.CharField(max_length=15 , default= "Uknown")
+    email = models.CharField(max_length= 155, default="Unknown")
     
 
 
