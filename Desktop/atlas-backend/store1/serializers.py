@@ -60,41 +60,42 @@ class OrderItemSerializer(serializers.ModelSerializer):
         fields = ['product', 'product_name', 'product_price', 'quantity']
 
 
+
+
 # Order Serializer
 class OrderSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(read_only=True)
     created_at = serializers.DateTimeField(read_only=True)
-    user = serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), required=False)
-    products = OrderItemSerializer(many=True)  # Products for order creation
-    items = OrderItemSerializer(many=True, read_only=True, source="orderitem_set")  
+    user = serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), required=False, allow_null=False)
+    products = OrderItemSerializer(many=True)  # Handle multiple products
+    items = OrderItemSerializer(many=True, read_only=True, source="orderitem_set")  # Return order items for the order
 
     class Meta:
         model = Order
-        fields = ['id', 'order_id', 'created_at', 'status', 'user', 'products', 'items',]
+        fields = ['id', 'order_id', 'created_at', 'status', 'user', 'products', 'items']
 
     def create(self, validated_data):
-        # Extract product data
+        # Extract product data from validated data
         products_data = validated_data.pop('products')
 
-        # Ensure the user is assigned, if not provided, assign AnonymousUser or raise an exception
+        # Get the user (if provided, else None for guest users)
         user = validated_data.get('user', None)
-        if not user:
-            raise serializers.ValidationError("User is required to create an order.")
 
         # Create the Order instance
         order = Order.objects.create(**validated_data)
 
+        # Process each product and create associated OrderItems
         for item_data in products_data:
             product = item_data['product']
             quantity = item_data.get('quantity', 1)
 
-            # Validate stock
+            # Validate product stock
             if product.stock < quantity:
                 raise serializers.ValidationError(
                     f"Insufficient stock for product {product.name}."
                 )
 
-            # Reduce stock and create order item
+            # Reduce stock and create the OrderItem
             product.stock -= quantity
             product.save()
 

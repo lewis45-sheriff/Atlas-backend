@@ -1,9 +1,9 @@
 from django.urls import path
-from .views import register, login_view, Get_Products, get_product_by_name ,get_orders ,get_category_products, create_order, get_categories, get_category_subcategories, get_user_orders
+from .views import register,  Get_Products, get_product_by_name ,get_orders ,get_category_products, create_order, get_categories, get_category_subcategories, get_user_orders,authUser
 
 urlpatterns = [
     path('register/', register, name='register'),
-    path('login/', login_view, name='login'),
+    path('login/', authUser, name='login'),
     path('product/', Get_Products, name='Get_product'),
      path('product/<str:product_name>/', get_product_by_name, name='product_by_name'),
 

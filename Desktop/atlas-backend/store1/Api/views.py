@@ -4,13 +4,15 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.authtoken.models import Token
 from rest_framework.exceptions import NotFound
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from django.contrib.auth import authenticate, get_user_model
-from store1.models import Product, Order, Category, Subcategory
+from store1.models import Product, Order, Category, Subcategory, OrderItem
 from ..serializers import (
     UserSerializer, ProductSerializer, ProductDetailSerializer,
-    OrderSerializer, CategorySerializer, SubcategorySerializer
+    OrderSerializer, CategorySerializer, SubcategorySerializer ,serializers
 )
+
 
 User = get_user_model()
 
@@ -25,11 +27,7 @@ def register(request):
         email = serializer.validated_data.get("email")
         password = serializer.validated_data.get("password")
         
-        if User.objects.filter(username=username).exists():
-            return Response({'success': False, 'message': 'Username already exists'}, status=status.HTTP_400_BAD_REQUEST)
-        if User.objects.filter(email=email).exists():
-            return Response({"success": False, "message": "Email already exists"}, status=status.HTTP_400_BAD_REQUEST)
-
+        
         user = serializer.save()
         token = Token.objects.create(user=user)
         return Response({
@@ -38,24 +36,69 @@ def register(request):
             'token': token.key
         }, status=status.HTTP_201_CREATED)
 
-    return Response({'success': False, 'message': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+    
+
+
+# @api_view(['POST'])
+# def login_view(request):
+#     """Log in a user and return their authentication token."""
+#     username = request.data.get('username')
+#     password = request.data.get('password')
+#     user = authenticate(request, username=username, password=password)
+
+#     if user:
+#         token, _ = Token.objects.get_or_create(user=user)
+#         return Response({
+#             "message": "Login successful!",
+#             "token": token.key
+#         }, status=status.HTTP_200_OK)
+
+#     return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
 
 
 @api_view(['POST'])
-def login_view(request):
-    """Log in a user and return their authentication token."""
+def authUser(request):
+    """Authenticate the user and return the token."""
     username = request.data.get('username')
     password = request.data.get('password')
-    user = authenticate(request, username=username, password=password)
 
-    if user:
-        token, _ = Token.objects.get_or_create(user=user)
-        return Response({
-            "message": "Login successful!",
-            "token": token.key
-        }, status=status.HTTP_200_OK)
+    if username and password:
+        try:
+            user = User.objects.get(username=username)
+        except User.DoesNotExist:
+            return Response({'message': "Incorrect login credentials"}, status=status.HTTP_400_BAD_REQUEST)
 
-    return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+        # Authenticate the user
+        user_auth = authenticate(username=username, password=password)
+
+        if user_auth is not None:
+            # Create access and refresh tokens for the authenticated user
+            refresh = RefreshToken.for_user(user)
+            access_token = str(refresh.access_token)
+
+            # Return user data along with access and refresh tokens
+            serializer = UserSerializer(user)  # Use UserSerializer for user data serialization
+            data = serializer.data
+            data['access'] = access_token
+            data['refresh'] = str(refresh)
+
+            # Ensure token is included as part of response body
+            return Response({
+                'message': 'Login successful',
+                'data': data
+            }, status=status.HTTP_200_OK)
+
+        return Response({'message': "Incorrect login credentials"}, status=status.HTTP_400_BAD_REQUEST)
+
+    return Response({'message': 'Username and password are required'}, status=status.HTTP_400_BAD_REQUEST)
+
+# def _create_response(self, status_code, message, entity=None):
+#     response = ApiResponse()  # Assuming ApiResponse is a custom class you're using for API response formatting
+#     response.setStatusCode(status_code)
+#     response.setMessage(message)
+#     if entity:
+#         response.setEntity(entity)
+#     return Response(response.toDict(), status=status_code)
 
 
 # Product Endpoints
@@ -152,13 +195,54 @@ def get_user_orders(request):
 @api_view(['POST', 'GET'])
 def create_order(request):
     """Create a new order."""
+    
+    # Check if the user is authenticated, if not, assign an anonymous user (guest user)
+    user = request.user if request.user.is_authenticated else None  # None allows anonymous orders
+    
+    # Add the user to the request data if it's not already present (for serializer validation)
+    request.data['user'] = user
+
+    # Use the OrderSerializer to validate and save the order
     serializer = OrderSerializer(data=request.data)
     if serializer.is_valid():
-        serializer.save(user=request.user)  # Save the order with the authenticated user
+        # Save the order with the user (authenticated or anonymous)
+        order = serializer.save(user=user)
+
+        # Process the products and create order items
+        products_data = request.data.get('products', [])
+        for item_data in products_data:
+            product_id = item_data['product']
+            quantity = item_data.get('quantity', 1)
+
+            # Ensure price and quantity are valid numbers
+            price = item_data.get('price')
+            if price is None:
+                raise serializers.ValidationError("Price is required for all products.")
+            
+            if quantity is None or quantity <= 0:
+                raise serializers.ValidationError(f"Invalid quantity for product {product_id}.")
+
+            # Fetch the product instance from the database
+            try:
+                product = Product.objects.get(id=product_id)
+            except Product.DoesNotExist:
+                return Response({"error": f"Product with ID {product_id} not found."}, status=status.HTTP_404_NOT_FOUND)
+
+            # Validate stock
+            if product.stock is None or product.stock < quantity:
+                return Response({"error": f"Insufficient stock for product {product.name}."}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Reduce stock and create the order item
+            product.stock -= quantity
+            product.save()
+
+            # Create OrderItem instance
+            OrderItem.objects.create(order=order, product=product, quantity=quantity)
+
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
+    # Return validation errors if any
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
