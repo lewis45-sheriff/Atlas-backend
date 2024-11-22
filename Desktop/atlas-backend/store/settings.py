@@ -43,8 +43,11 @@ INSTALLED_APPS = [
     'store1',
     'corsheaders',
     'rest_framework.authtoken', 
-
+      # For Token Authentication
 ]
+
+
+
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -56,6 +59,11 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
+   
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    # Other middlewares
+
+
 ]
 # Allow all origins (for development only)
 CORS_ALLOW_ALL_ORIGINS = True
@@ -146,3 +154,17 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 AUTH_USER_MODEL= 'store1.User'
+REST_FRAMEWORK = {
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.AllowAny',  # Default permission if not set explicitly
+    ],
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.TokenAuthentication',  # For token-based authentication
+    ],
+
+}
+# Session settings in settings.py
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'  # Default: Database session
+SESSION_COOKIE_AGE = 3600  # 1 hour (default is 300 seconds)
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True  # Delete session on browser close
+

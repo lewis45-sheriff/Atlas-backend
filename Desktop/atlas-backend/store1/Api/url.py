@@ -1,15 +1,17 @@
 from django.urls import path
-from .views import register, login_view, Get_products, get_product_by_id ,get_orders ,get_category_products, create_order, Get_categories, get_category_subcategories
+from .views import register, login_view, Get_Products, get_product_by_name ,get_orders ,get_category_products, create_order, get_categories, get_category_subcategories, get_user_orders
 
 urlpatterns = [
     path('register/', register, name='register'),
     path('login/', login_view, name='login'),
-    path('product/', Get_products, name='Get_product'),
-    path('product_info/<int:product_id>/', get_product_by_id, name='product_info'),
+    path('product/', Get_Products, name='Get_product'),
+     path('product/<str:product_name>/', get_product_by_name, name='product_by_name'),
+
     path('create_order/', create_order, name='create_order'),
-    path('orders/', get_orders, name='orderlist'),
-    path('category/', Get_categories, name='Get_categories'),
-    path('categories/<int:id>/<str:type>', get_category_products, name='get_category_products'),
-    path('category/<int:category_id>/subcategories/',get_category_subcategories, name='get_category_subcategories'),
+    path('orders/', get_user_orders, name='get user order'),
+    path('categories/', get_categories, name='Get_categories by name'),
+    path('categories/<str:name>/', get_category_products, name='get_category_products'),
+     path('categories/<str:category_name>/subcategories/', get_category_subcategories, name='category_subcategories'),
+    path('categories/<int:category_id>/subcategories/',get_category_subcategories, name='get_category_subcategories'),
   # Corrected the typo and added int parameter
 ]
