@@ -42,7 +42,7 @@ class Product(models.Model):
     stock = models.PositiveIntegerField(default=0)
     is_new = models.BooleanField(default=False)
     is_best_seller = models.BooleanField(default=False)
-    avatar = models.ImageField(upload_to='avatars/', default='avatars/default.jpg', blank=True, null=True)
+   
     image = models.ImageField(upload_to='products/', blank=True, null=True)
 
     @property
