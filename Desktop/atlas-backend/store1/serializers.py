@@ -50,56 +50,47 @@ class ProductDetailSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'price', 'category', 'is_new', 'is_best_seller', 'image', 'description', 'stock']
 
 
-# Order Item Serializer 
+# from rest_framework import serializers
+
+# OrderItem Serializer
 class OrderItemSerializer(serializers.ModelSerializer):
-    product_name = serializers.CharField(source='product.name', read_only=True)
-    product_price = serializers.DecimalField(source='product.price', max_digits=10, decimal_places=2, read_only=True)
+    product = serializers.PrimaryKeyRelatedField(queryset=Product.objects.all())
 
     class Meta:
         model = OrderItem
-        fields = ['product', 'product_name', 'product_price', 'quantity']
-
-
-
+        fields = ['product', 'quantity', 'unit_price', 'total_price']
 
 # Order Serializer
+
 class OrderSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(read_only=True)
     created_at = serializers.DateTimeField(read_only=True)
-    user = serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), required=False, allow_null=False)
-    products = OrderItemSerializer(many=True)  # Handle multiple products
-    items = OrderItemSerializer(many=True, read_only=True, source="orderitem_set")  # Return order items for the order
+    # user = serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), required=False, allow_null=True)
+    firstName = serializers.CharField(write_only=True)
+    lastName = serializers.CharField(write_only=True)
+    
+
+    
+    items = OrderItemSerializer(many=True, required=False)  # Expecting items to be passed in the request
+
+    # Additional fields from the payload
+    paymentMethod = serializers.CharField(write_only=True)
+    mpesaCode = serializers.CharField(write_only=True, required=False)
+    mpesaPhone = serializers.CharField(write_only=True)
+    paypalEmail = serializers.EmailField(write_only=True, required=False)
+    cardNumber = serializers.CharField(write_only=True, required=False)
+    cvv = serializers.CharField(write_only=True, required=False)
+    expiryDate = serializers.CharField(write_only=True, required=False)
+    
+    
+    location = serializers.CharField(write_only=True)
+    phoneNumber = serializers.CharField(write_only=True)
+    email = serializers.EmailField(write_only=True)
 
     class Meta:
         model = Order
-        fields = ['id', 'order_id', 'created_at', 'status', 'user', 'products', 'items']
-
-    def create(self, validated_data):
-        # Extract product data from validated data
-        products_data = validated_data.pop('products')
-
-        # Get the user (if provided, else None for guest users)
-        user = validated_data.get('user', None)
-
-        # Create the Order instance
-        order = Order.objects.create(**validated_data)
-
-        # Process each product and create associated OrderItems
-        for item_data in products_data:
-            product = item_data['product']
-            quantity = item_data.get('quantity', 1)
-
-            # Validate product stock
-            if product.stock < quantity:
-                raise serializers.ValidationError(
-                    f"Insufficient stock for product {product.name}."
-                )
-
-            # Reduce stock and create the OrderItem
-            product.stock -= quantity
-            product.save()
-
-            # Create OrderItem instance
-            OrderItem.objects.create(order=order, product=product, quantity=quantity)
-
-        return order
+        fields = [
+            'id', 'order_id', 'created_at', 'status', 'user', 'items', 'paymentMethod',
+            'mpesaCode', 'mpesaPhone', 'paypalEmail', 'cardNumber', 'cvv', 'expiryDate',
+            'firstName', 'lastName', 'location', 'phoneNumber', 'email'
+        ]
