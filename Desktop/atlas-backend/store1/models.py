@@ -106,8 +106,6 @@ class Order(models.Model):
     
     # Financial Details
     subtotal = models.DecimalField(max_digits=10, decimal_places=2,null=True)
-    shipping_fee = models.DecimalField(max_digits=10, decimal_places=2,null=True)
-    discount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     total = models.DecimalField(max_digits=10, decimal_places=2,null=True)
     
     # Optional User Association
@@ -123,7 +121,7 @@ class Order(models.Model):
         return f"Order {self.order_id}"
    
     session_id = models.CharField(max_length=255, null=True, blank=True)  # Optionally store session ID
-from django.db import models
+
 
 class OrderItem(models.Model):
     order = models.ForeignKey(

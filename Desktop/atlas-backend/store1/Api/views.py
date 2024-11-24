@@ -14,6 +14,7 @@ from ..serializers import (
 from django.conf import settings
 from django.http import HttpResponse, FileResponse
 import os
+from mimetypes import guess_type
 
 User = get_user_model()
 
@@ -138,7 +139,6 @@ def get_category_subcategories(request, category_name):
 
 
 ### Order Endpoints ###
-
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def create_order(request):
@@ -147,20 +147,22 @@ def create_order(request):
     """
     user = request.user if request.user.is_authenticated else None
     serializer = OrderSerializer(data=request.data)
+    
     if serializer.is_valid():
+        # Save the Order instance first
         order = serializer.save(user=user)
 
         # Process the products included in the order
         products_data = request.data.get('products', [])
         for item_data in products_data:
-            product_id = item_data.get('product')
+            product_name = item_data.get('product')
             quantity = item_data.get('quantity', 1)
 
             # Validate the product and check stock
             try:
-                product = Product.objects.get(name=get_product_by_name)
+                product = Product.objects.get(name=product_name)  # Fetch product by name
             except Product.DoesNotExist:
-                return Response({"error": f"Product with ID {get_product_by_name} not found."}, status=status.HTTP_404_NOT_FOUND)
+                return Response({"error": f"Product with name {product_name} not found."}, status=status.HTTP_404_NOT_FOUND)
 
             if product.stock < quantity:
                 return Response({"error": f"Insufficient stock for {product.name}."}, status=status.HTTP_400_BAD_REQUEST)
@@ -169,12 +171,13 @@ def create_order(request):
             product.stock -= quantity
             product.save()
 
-            # Create the OrderItem with unit_price set explicitly
+            # Create the OrderItem
             OrderItem.objects.create(
                 order=order,
                 product=product,
                 quantity=quantity,
-                  # Ensure this is set
+                unit_price=product.price,  # Ensure unit_price is set
+                total_price=product.price * quantity
             )
 
         return Response(OrderSerializer(order).data, status=status.HTTP_201_CREATED)
@@ -207,6 +210,13 @@ def image_view(request, image_name):
     image_path = os.path.join(settings.MEDIA_ROOT, 'products', image_name)
 
     if os.path.exists(image_path):
-        return FileResponse(open(image_path, 'rb'), content_type='image/jpeg')
+        # Dynamically determine content type
+        content_type, _ = guess_type(image_path)
+        if not content_type:
+            content_type = 'application/octet-stream'
+
+        # Open the image file and return it as a response
+        with open(image_path, 'rb') as img_file:
+            return FileResponse(img_file, content_type=content_type)
     else:
         return HttpResponse("Image not found", status=404)
