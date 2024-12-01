@@ -44,7 +44,7 @@ class Product(models.Model):
     stock = models.PositiveIntegerField(default=0)
     is_new = models.BooleanField(default=False)
     is_best_seller = models.BooleanField(default=False)
-    image = models.ImageField(upload_to='products/', blank=True, null=True)
+    image = models.ImageField(upload_to='', blank=True, null=True)
     origin = models.CharField(max_length=255, blank=True, null=True)  # Country of origin
     alcohol_content = models.DecimalField(max_digits=4, decimal_places=2, blank=True, null=True)  # Alcohol Content
     brand = models.CharField(max_length=255, blank=True, null=True)  # Brand name
@@ -106,8 +106,6 @@ class Order(models.Model):
     
     # Financial Details
     subtotal = models.DecimalField(max_digits=10, decimal_places=2,null=True)
-    shipping_fee = models.DecimalField(max_digits=10, decimal_places=2,null=True)
-    discount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     total = models.DecimalField(max_digits=10, decimal_places=2,null=True)
     
     # Optional User Association
@@ -124,9 +122,10 @@ class Order(models.Model):
    
     session_id = models.CharField(max_length=255, null=True, blank=True)  # Optionally store session ID
 
+
 class OrderItem(models.Model):
     order = models.ForeignKey(
-        Order, 
+        'Order',  # Ensure you use the correct model name here
         on_delete=models.CASCADE, 
         related_name='items'
     )
@@ -136,14 +135,23 @@ class OrderItem(models.Model):
         related_name='order_items'
     )
     quantity = models.PositiveIntegerField()
-    unit_price = models.DecimalField(max_digits=10, decimal_places=2,null=True)
-    total_price = models.DecimalField(max_digits=10, decimal_places=2,null=True)
-    created_at =models.DecimalField(max_digits=20, decimal_places=2,null=True)
+    unit_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    total_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)  # Automatically set when the object is created
 
     def save(self, *args, **kwargs):
+        # Ensure unit_price is set from the product price if not explicitly provided
+        if self.unit_price is None:
+            if self.product and hasattr(self.product, 'price'):
+                self.unit_price = self.product.price
+            else:
+                raise ValueError("Unit price cannot be None. Please provide a valid product price.")
+
+        # Calculate total price
         self.total_price = self.quantity * self.unit_price
+        
+        # No need to set created_at manually, Django will handle it.
         super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.quantity} x {self.product.name} in {self.order.order_id}"
-

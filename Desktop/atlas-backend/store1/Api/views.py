@@ -2,66 +2,74 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
-from rest_framework.authtoken.models import Token
 from rest_framework.exceptions import NotFound
-
+from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate, get_user_model
-from store1.models import Product, Order, Category, Subcategory
+from store1.models import Product, Order, Category, Subcategory, OrderItem
 from ..serializers import (
     UserSerializer, ProductSerializer, ProductDetailSerializer,
-    OrderSerializer, CategorySerializer, SubcategorySerializer
+    OrderSerializer, CategorySerializer, SubcategorySerializer, serializers
 )
+
+from django.conf import settings
+from django.http import HttpResponse, FileResponse
+import os
+from mimetypes import guess_type
 
 User = get_user_model()
 
-# User Authentication
+### User Authentication Endpoints ###
+
 @permission_classes([AllowAny])
 @api_view(['POST'])
 def register(request):
-    """Register a new user and generate an authentication token."""
+    """
+    Register a new user and generate an authentication token.
+    """
     serializer = UserSerializer(data=request.data)
     if serializer.is_valid():
-        username = serializer.validated_data.get('username')
-        email = serializer.validated_data.get("email")
-        password = serializer.validated_data.get("password")
-        
-        if User.objects.filter(username=username).exists():
-            return Response({'success': False, 'message': 'Username already exists'}, status=status.HTTP_400_BAD_REQUEST)
-        if User.objects.filter(email=email).exists():
-            return Response({"success": False, "message": "Email already exists"}, status=status.HTTP_400_BAD_REQUEST)
-
         user = serializer.save()
-        token = Token.objects.create(user=user)
+        token = RefreshToken.for_user(user)
         return Response({
             'success': True,
             'message': 'User registered successfully',
-            'token': token.key
+            'access': str(token.access_token),
+            'refresh': str(token),
         }, status=status.HTTP_201_CREATED)
-
-    return Response({'success': False, 'message': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['POST'])
-def login_view(request):
-    """Log in a user and return their authentication token."""
+def auth_user(request):
+    """
+    Authenticate the user and return access and refresh tokens.
+    """
     username = request.data.get('username')
     password = request.data.get('password')
-    user = authenticate(request, username=username, password=password)
 
-    if user:
-        token, _ = Token.objects.get_or_create(user=user)
-        return Response({
-            "message": "Login successful!",
-            "token": token.key
-        }, status=status.HTTP_200_OK)
+    if username and password:
+        user = authenticate(username=username, password=password)
+        if user:
+            refresh = RefreshToken.for_user(user)
+            serializer = UserSerializer(user)
+            return Response({
+                'message': 'Login successful',
+                'user': serializer.data,
+                'access': str(refresh.access_token),
+                'refresh': str(refresh),
+            }, status=status.HTTP_200_OK)
+        return Response({'error': "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
 
-    return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+    return Response({'error': 'Username and password are required'}, status=status.HTTP_400_BAD_REQUEST)
 
 
-# Product Endpoints
+### Product Endpoints ###
+
 @api_view(['GET'])
-def Get_Products(request):
-    """Retrieve all products."""
+def get_products(request):
+    """
+    Retrieve all products.
+    """
     products = Product.objects.all()
     serializer = ProductSerializer(products, many=True)
     return Response(serializer.data)
@@ -69,24 +77,22 @@ def Get_Products(request):
 
 @api_view(['GET'])
 def get_product_by_name(request, product_name):
-    """Retrieve a product by its name."""
-    # Get the product by its name
+    """
+    Retrieve a product by its name.
+    """
     product = Product.objects.filter(name=product_name).first()
-
     if not product:
         raise NotFound(f"Product with name '{product_name}' not found.")
-
-    # Serialize the product data
     serializer = ProductDetailSerializer(product)
     return Response(serializer.data)
 
 
 @api_view(['GET'])
 def get_category_products(request, name, type=None):
-    """Retrieve products by category and optional type."""
+    """
+    Retrieve products by category and optional type (e.g., best seller, new arrivals).
+    """
     products = Product.objects.filter(category__name=name)
-
-    # Optional filters
     if type == 'is_best_seller':
         products = products.filter(is_best_seller=True)
     elif type == 'is_new':
@@ -99,72 +105,118 @@ def get_category_products(request, name, type=None):
     return Response(serializer.data)
 
 
-# Category Endpoints
+### Category Endpoints ###
+
 @api_view(['GET'])
 def get_categories(request):
-    """Retrieve all categories or filter by name and include subcategories and products."""
-    name = request.query_params.get('name', None)
-
-    # Filter categories based on name if provided, otherwise return all
+    """
+    Retrieve all categories or filter by name, including nested subcategories and products.
+    """
+    name = request.query_params.get('name')
     categories = Category.objects.filter(name__icontains=name) if name else Category.objects.all()
-
-    # Serialize the categories with nested subcategories and products
     serializer = CategorySerializer(categories, many=True)
-
-    # Return the response with category data, subcategories, and nested product data
     return Response(serializer.data)
 
 
 @api_view(['GET'])
 def get_category_subcategories(request, category_name):
-    """Retrieve subcategories and their products for a given category by name."""
-
-    # Get the category by its name
+    """
+    Retrieve subcategories and their products for a given category.
+    """
     category = Category.objects.filter(name=category_name).first()
-
     if not category:
         raise NotFound(f"Category with name '{category_name}' not found.")
-
-    # Get all subcategories for this category
     subcategories = category.subcategory_set.all()
 
-    # Prepare the response data with subcategories and products
-    subcategory_data = [
+    response_data = [
         {
-            'sub_category': SubcategorySerializer(subcategory).data,
-            'products': ProductSerializer(Product.objects.filter(sub_category=subcategory), many=True).data
+            'subcategory': SubcategorySerializer(subcategory).data,
+            'products': ProductSerializer(Product.objects.filter(sub_category=subcategory), many=True).data,
         }
         for subcategory in subcategories
     ]
-
-    return Response(subcategory_data)
-
-
-# Order Endpoints
-@api_view(['GET'])
-def get_user_orders(request):
-    """Retrieve orders tied to the authenticated user."""
-    orders = Order.objects.filter(user=request.user)
-    serializer = OrderSerializer(orders, many=True)
-    return Response(serializer.data)
+    return Response(response_data)
 
 
-@api_view(['POST', 'GET'])
+### Order Endpoints ###
+@api_view(['POST'])
+@permission_classes([AllowAny])
 def create_order(request):
-    """Create a new order."""
+    """
+    Create a new order. Anonymous users are allowed.
+    """
+    user = request.user if request.user.is_authenticated else None
     serializer = OrderSerializer(data=request.data)
+    
     if serializer.is_valid():
-        serializer.save(user=request.user)  # Save the order with the authenticated user
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        # Save the Order instance first
+        order = serializer.save(user=user)
+
+        # Process the products included in the order
+        products_data = request.data.get('products', [])
+        for item_data in products_data:
+            product_name = item_data.get('product')
+            quantity = item_data.get('quantity', 1)
+
+            # Validate the product and check stock
+            try:
+                product = Product.objects.get(name=product_name)  # Fetch product by name
+            except Product.DoesNotExist:
+                return Response({"error": f"Product with name {product_name} not found."}, status=status.HTTP_404_NOT_FOUND)
+
+            if product.stock < quantity:
+                return Response({"error": f"Insufficient stock for {product.name}."}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Reduce stock and save the product
+            product.stock -= quantity
+            product.save()
+
+            # Create the OrderItem
+            OrderItem.objects.create(
+                order=order,
+                product=product,
+                quantity=quantity,
+                unit_price=product.price,  # Ensure unit_price is set
+                total_price=product.price * quantity
+            )
+
+        return Response(OrderSerializer(order).data, status=status.HTTP_201_CREATED)
 
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_orders(request):
-    """Retrieve all orders for the logged-in user."""
-    # Filter orders for the specific user
+  # Only authenticated users can access their orders
+def get_user_orders(request):
+    """
+    Retrieve orders tied to the authenticated user.
+    """
     orders = Order.objects.filter(user=request.user)
     serializer = OrderSerializer(orders, many=True)
     return Response(serializer.data)
+
+
+@api_view(['GET'])
+
+def get_orders(request):
+    """
+    Retrieve all orders for the authenticated user.
+    """
+    orders = Order.objects.filter(user=request.user)
+    serializer = OrderSerializer(orders, many=True)
+    return Response(serializer.data)
+
+def image_view(request, image_name):
+    # Get the path to the image file
+    image_path = os.path.join(settings.MEDIA_ROOT, 'products', image_name)
+
+    if os.path.exists(image_path):
+        # Dynamically determine content type
+        content_type, _ = guess_type(image_path)
+        if not content_type:
+            content_type = 'application/octet-stream'
+
+        # Open the image file and return it as a response
+        with open(image_path, 'rb') as img_file:
+            return FileResponse(img_file, content_type=content_type)
+    else:
+        return HttpResponse("Image not found", status=404)
