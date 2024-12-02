@@ -1,7 +1,7 @@
 import datetime
 from django.db import models
 from django.contrib.auth.models import AbstractUser
-import uuid
+from uuid import uuid4
 
 
 # Custom User model extending AbstractUser
@@ -52,10 +52,8 @@ class Product(models.Model):
     @property
     def in_stock(self):
         return self.stock > 0
-
     def __str__(self):
         return self.name
-
 
 # Order model to track customer orders
 
@@ -67,6 +65,8 @@ class PaymentMethod(models.TextChoices):
 
 
 class Order(models.Model):
+    session_id = models.CharField(max_length=255, null=True, blank=True)
+
     class StatusChoices(models.TextChoices):
         PENDING = 'pending', 'Pending'
         PROCESSING = 'processing', 'Processing'
@@ -76,7 +76,8 @@ class Order(models.Model):
         CANCELLED = 'cancelled', 'Cancelled'
 
     id = models.BigAutoField(primary_key=True,null=False)
-    order_id = models.CharField(max_length=50, unique=True, null=True)
+    order_id = models.UUIDField(default=uuid4, editable=True, unique=True)
+
     created_at = models.DateTimeField(auto_now_add=True,null=True)
     status = models.CharField(
         max_length=20, 
@@ -107,15 +108,10 @@ class Order(models.Model):
     # Financial Details
     subtotal = models.DecimalField(max_digits=10, decimal_places=2,null=True)
     total = models.DecimalField(max_digits=10, decimal_places=2,null=True)
+    session_id = models.CharField(max_length=255, null=True, blank=True)
+
+    user =models.CharField(max_length= 20,null=True)
     
-    # Optional User Association
-    user = models.ForeignKey(
-        User, 
-        on_delete=models.SET_NULL, 
-        related_name='orders', 
-        null=True, 
-        blank=True
-    )
 
     def __str__(self):
         return f"Order {self.order_id}"

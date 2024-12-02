@@ -70,42 +70,32 @@ class OrderItemSerializer(serializers.ModelSerializer):
         model = OrderItem
         fields = ['product', 'quantity', 'unit_price', 'total_price']
 
-
 class OrderSerializer(serializers.ModelSerializer):
-    order_id = serializers.IntegerField(read_only=True)
+    id = serializers.IntegerField(read_only=True)
+    order_id = serializers.CharField(read_only=True)
     created_at = serializers.DateTimeField(read_only=True)
-    user = serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), required=False, allow_null=True)
-
-    # Flattened fields for user input
+    username = serializers.CharField( read_only=True)
     first_name = serializers.CharField(write_only=True)
     last_name = serializers.CharField(write_only=True)
     street_address = serializers.CharField(write_only=True)
     location = serializers.CharField(write_only=True)
     phone_number = serializers.CharField(write_only=True)
     email = serializers.EmailField(write_only=True)
-
-    # Payment method-related fields
     payment_method = serializers.CharField(write_only=True)
     mpesa_code = serializers.CharField(write_only=True, required=False)
     mpesa_phone = serializers.CharField(write_only=True)
-    total = serializers.CharField(write_only =True)
-
-    # Input for creating order items
+    total = serializers.CharField(write_only=True)
     products = OrderItemSerializer(many=True, write_only=True)
-
-    # Output for listing order items
     items = serializers.SerializerMethodField()
-
     class Meta:
         model = Order
         fields = [
-            'order_id', 'user', 'created_at', 'status', 'first_name', 'last_name', 
+            'id','order_id', 'username', 'created_at', 'status', 'first_name', 'last_name',
             'street_address', 'location', 'phone_number', 'email', 'payment_method',
-            'mpesa_code', 'mpesa_phone', 'products', 'items','total'
+            'mpesa_code', 'mpesa_phone', 'products', 'items', 'total'
         ]
 
     def get_items(self, obj):
-        # Fetch related order items
         order_items = OrderItem.objects.filter(order=obj)
         return OrderItemSerializer(order_items, many=True).data
 
@@ -122,7 +112,6 @@ class OrderSerializer(serializers.ModelSerializer):
             product_name = item_data.get('product')
             quantity = item_data.get('quantity', 1)
 
-            # Look up the product by name
             try:
                 product = Product.objects.get(name=product_name)
             except Product.DoesNotExist:
@@ -130,21 +119,17 @@ class OrderSerializer(serializers.ModelSerializer):
                     'product': f"Product with name '{product_name}' does not exist."
                 })
 
-            # Check product stock
             if product.stock < quantity:
                 raise serializers.ValidationError({
                     'product': f"Insufficient stock for product '{product_name}'."
                 })
 
-            # Reduce product stock
             product.stock -= quantity
             product.save()
 
-            # Calculate unit price and total price
             unit_price = product.price
             total_price = unit_price * quantity
 
-            # Create the OrderItem instance
             OrderItem.objects.create(
                 order=order,
                 product=product,
@@ -154,9 +139,6 @@ class OrderSerializer(serializers.ModelSerializer):
             )
 
         return order
-
-
-
 # Image Upload Serializer
 class ImageUploadSerializer(serializers.Serializer):
     image = serializers.ImageField()

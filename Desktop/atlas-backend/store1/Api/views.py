@@ -8,13 +8,15 @@ from django.contrib.auth import authenticate, get_user_model
 from store1.models import Product, Order, Category, Subcategory, OrderItem
 from ..serializers import (
     UserSerializer, ProductSerializer, ProductDetailSerializer,
-    OrderSerializer, CategorySerializer, SubcategorySerializer, serializers
+    OrderSerializer, CategorySerializer, SubcategorySerializer, serializers, OrderItemSerializer
 )
 
 from django.conf import settings
 from django.http import HttpResponse, FileResponse
 import os
 from mimetypes import guess_type
+from django.http import FileResponse, JsonResponse
+import logging
 
 User = get_user_model()
 
@@ -152,6 +154,9 @@ def create_order(request):
         # Save the Order instance first
         order = serializer.save(user=user)
 
+        # Access the order ID directly from the saved order instance
+        order_id = order.order_id
+
         # Process the products included in the order
         products_data = request.data.get('products', [])
         for item_data in products_data:
@@ -180,43 +185,78 @@ def create_order(request):
                 total_price=product.price * quantity
             )
 
+        # Return the response with the order data
         return Response(OrderSerializer(order).data, status=status.HTTP_201_CREATED)
 
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
+
 @api_view(['GET'])
-  # Only authenticated users can access their orders
 def get_user_orders(request):
     """
-    Retrieve orders tied to the authenticated user.
+    Retrieve orders tied to the authenticated user or based on order_id.
     """
-    orders = Order.objects.filter(user=request.user)
-    serializer = OrderSerializer(orders, many=True)
+    order_id = request.query_params.get('order_id', None)
+
+    if order_id:
+        # Fetch orders associated with the provided order_id
+        orders = Order.objects.filter(order_id=order_id)
+    elif request.user.is_authenticated:
+        # Fetch orders associated with the logged-in user
+        orders = Order.objects.filter(user=request.user)
+    else:
+        # No order_id and user is not authenticated, return error
+        return Response({"detail": "Order ID or authenticated user required."}, status=400)
+
+    # Serialize the orders using the OrderSerializer
+    serializer = OrderSerializer(orders, many=True)  # Correct usage of the serializer here
+    return Response(serializer.data)
+@api_view(['GET'])
+def get_orders(request):
+    """
+    Retrieve all orders in the database.
+    """
+    orders = Order.objects.all()  # Retrieve all orders
+    serializer = OrderSerializer(orders, many=True)  # Use the OrderSerializer with many=True
     return Response(serializer.data)
 
 
 @api_view(['GET'])
-
-def get_orders(request):
+def get_order_by_id(request, id):
     """
-    Retrieve all orders for the authenticated user.
+    Retrieve a specific order by its ID.
     """
-    orders = Order.objects.filter(user=request.user)
-    serializer = OrderSerializer(orders, many=True)
-    return Response(serializer.data)
+    try:
+        order = Order.objects.get(id=id)  # Fetch the order by ID
+        serializer = OrderSerializer(order)  # Serialize the order
+        return Response(serializer.data)
+    except Order.DoesNotExist:
+        return Response({"error": "Order not found"}, status=status.HTTP_404_NOT_FOUND)
 
-def image_view(request, image_name):
-    # Get the path to the image file
-    image_path = os.path.join(settings.MEDIA_ROOT, 'products', image_name)
 
-    if os.path.exists(image_path):
-        # Dynamically determine content type
-        content_type, _ = guess_type(image_path)
-        if not content_type:
-            content_type = 'application/octet-stream'
 
-        # Open the image file and return it as a response
-        with open(image_path, 'rb') as img_file:
-            return FileResponse(img_file, content_type=content_type)
-    else:
-        return HttpResponse("Image not found", status=404)
+
+logger = logging.getLogger(__name__)
+
+def image_view(request, image_name: str):
+    """
+    Serve product images from the MEDIA_ROOT/products directory.
+    """
+    try:
+        sanitized_name = os.path.basename(image_name)  # Prevent directory traversal
+        image_path = os.path.join(settings.MEDIA_ROOT, 'products', sanitized_name)
+
+        if os.path.exists(image_path):
+            content_type, _ = guess_type(image_path)
+            content_type = content_type or 'application/octet-stream'
+
+            with open(image_path, 'rb') as img_file:
+                return FileResponse(img_file, content_type=content_type)
+
+        logger.warning(f"Image not found: {image_path}")
+        return JsonResponse({'error': 'Image not found'}, status=404)
+
+    except Exception as e:
+        logger.error(f"Error serving image {image_name}: {e}")
+        return JsonResponse({'error': 'An unexpected error occurred'}, status=500)

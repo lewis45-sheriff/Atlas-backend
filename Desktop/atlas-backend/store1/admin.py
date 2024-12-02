@@ -11,7 +11,7 @@ class ProductAdmin(admin.ModelAdmin):
     
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
-    list_display = ('created_at', 'status', 'user')
+    list_display = ('order_id','created_at', 'status', 'user')
     
 @admin.register(OrderItem)
 class OrderItemAdmin(admin.ModelAdmin):

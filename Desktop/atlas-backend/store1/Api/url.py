@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import register,  get_products, get_product_by_name  ,get_category_products, create_order, get_categories, get_category_subcategories, get_user_orders,auth_user,image_view
+from .views import register,  get_products, get_product_by_name,get_order_by_id  ,get_category_products, create_order, get_categories, get_category_subcategories, get_user_orders,auth_user,image_view,get_orders
 from django.conf.urls.static import static
 from django.conf import settings
 
@@ -15,7 +15,10 @@ urlpatterns = [
     path('categories/<str:name>/', get_category_products, name='get_category_products'),
      path('categories/<str:category_name>/subcategories/', get_category_subcategories, name='category_subcategories'),
     path('categories/<int:category_id>/subcategories/',get_category_subcategories, name='get_category_subcategories'),
-     path('products/<str:image_name>/', image_view, name='image-view'),
+    #  path('products/<str:image_name>/', image_view, name='image-view'),
+    path ('all_oders', get_orders, name='get all oders'),
+    path('all_oders/<int:id>/', get_order_by_id, name='get_order_by_id'),
+    path('products/<str:image_name>/', image_view, name='image_view'),
   # Corrected the typo and added int parameter
 ]
 if settings.DEBUG:
