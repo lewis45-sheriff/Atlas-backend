@@ -18,7 +18,7 @@ urlpatterns = [
     #  path('products/<str:image_name>/', image_view, name='image-view'),
     path ('all_oders', get_orders, name='get all oders'),
     path('all_oders/<int:id>/', get_order_by_id, name='get_order_by_id'),
-    path('products/<str:image_name>/', image_view, name='image_view'),
+    path('media/products/<str:image_name>/', image_view, name='image_view'),
   # Corrected the typo and added int parameter
 ]
 if settings.DEBUG:

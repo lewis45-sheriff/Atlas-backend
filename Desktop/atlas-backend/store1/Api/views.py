@@ -18,6 +18,12 @@ from mimetypes import guess_type
 from django.http import FileResponse, JsonResponse
 import logging
 from collections import defaultdict
+import os
+import base64
+import logging
+from mimetypes import guess_type
+from django.conf import settings
+from django.http import JsonResponse
 
 User = get_user_model()
 
@@ -256,22 +262,31 @@ def get_order_by_id(request, id):
     except Order.DoesNotExist:
         return Response({"error": "Order not found"}, status=status.HTTP_404_NOT_FOUND)
 
+
+
+
 logger = logging.getLogger(__name__)
 
 def image_view(request, image_name: str):
     """
-    Serve product images from the MEDIA_ROOT/products directory.
+    Serve product images as a Base64 encoded string from the MEDIA_ROOT/products directory.
     """
     try:
         sanitized_name = os.path.basename(image_name)  # Prevent directory traversal
-        image_path = os.path.join(settings.MEDIA_ROOT, 'products', sanitized_name)
+        image_path = os.path.join(settings.MEDIA_ROOT, sanitized_name)
 
         if os.path.exists(image_path):
+            with open(image_path, "rb") as img_file:
+                encoded_string = base64.b64encode(img_file.read()).decode("utf-8")
+            
             content_type, _ = guess_type(image_path)
-            content_type = content_type or 'application/octet-stream'
+            content_type = content_type or "application/octet-stream"
 
-            with open(image_path, 'rb') as img_file:
-                return FileResponse(img_file, content_type=content_type)
+            return JsonResponse({
+                "image_name": image_name,
+                "content_type": content_type,
+                "base64": encoded_string
+            })
 
         logger.warning(f"Image not found: {image_path}")
         return JsonResponse({'error': 'Image not found'}, status=404)
@@ -279,8 +294,3 @@ def image_view(request, image_name: str):
     except Exception as e:
         logger.error(f"Error serving image {image_name}: {e}")
         return JsonResponse({'error': 'An unexpected error occurred'}, status=500)
-    
-
- # Add the new view to the URL patterns
-
- 

@@ -1,5 +1,7 @@
 from rest_framework import serializers
 from .models import Category, Product, User, Order, OrderItem, Subcategory
+import base64
+from django.core.files.base import ContentFile
 
 # User Serializer
 class UserSerializer(serializers.ModelSerializer):
@@ -37,29 +39,54 @@ class CategorySerializer(serializers.ModelSerializer):
 class ProductSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(read_only=True)
     subcategory_name = serializers.CharField(source='sub_category.name', read_only=True)
-    image_url = serializers.SerializerMethodField()
+    image_url = serializers.SerializerMethodField()  # Added image_url field
+    image_base64 = serializers.SerializerMethodField()  # Include Base64 image
 
     class Meta:
         model = Product
         fields = [
             'id', 'name', 'category', 'price', 'is_new', 'is_best_seller', 
-            'description', 'image', 'subcategory_name', 'image_url'
+            'description', 'image', 'subcategory_name', 'image_url', 'image_base64'  # Fixed here
         ]
 
     def get_image_url(self, obj):
+        """Return the absolute URL of the image"""
+        request = self.context.get('request')
         if obj.image:
-            return obj.image.url
+            return request.build_absolute_uri(obj.image.url) if request else obj.image.url
         return None
 
-
+    def get_image_base64(self, obj):
+        """Convert image to Base64"""
+        if obj.image and hasattr(obj.image, 'path'):
+            try:
+                with open(obj.image.path, "rb") as image_file:
+                    return base64.b64encode(image_file.read()).decode('utf-8')
+            except Exception as e:
+                return None  # Handle missing files gracefully
+        return None
 # Product Detail Serializer
 class ProductDetailSerializer(serializers.ModelSerializer):
+    category_name = serializers.CharField(source="category.name", read_only=True)
+    image_base64 = serializers.SerializerMethodField()
+
     class Meta:
         model = Product
         fields = [
-            'id', 'name', 'price', 'category', 'is_new', 'is_best_seller',
-            'image', 'description', 'stock', 'alcohol_content', 'origin'
+            'id', 'name', 'price', 'category', 'category_name', 'is_new', 
+            'is_best_seller', 'image_base64', 'description', 'stock', 
+            'alcohol_content', 'origin'
         ]
+
+    def get_image_base64(self, obj):
+        """Convert image to Base64"""
+        if obj.image and hasattr(obj.image, 'path'):
+            try:
+                with open(obj.image.path, "rb") as image_file:
+                    return base64.b64encode(image_file.read()).decode('utf-8')
+            except Exception as e:
+                return None  # Handle missing files gracefully
+        return None
 
 
 # OrderItem Serializer
