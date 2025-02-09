@@ -108,7 +108,7 @@ class Order(models.Model):
     # Financial Details
     subtotal = models.DecimalField(max_digits=10, decimal_places=2,null=True)
     total = models.DecimalField(max_digits=10, decimal_places=2,null=True)
-    session_id = models.CharField(max_length=255, null=True, blank=True)
+   
 
     user =models.CharField(max_length= 20,null=True)
     
@@ -116,7 +116,7 @@ class Order(models.Model):
     def __str__(self):
         return f"Order {self.order_id}"
    
-    session_id = models.CharField(max_length=255, null=True, blank=True)  # Optionally store session ID
+     # Optionally store session ID
 
 
 class OrderItem(models.Model):

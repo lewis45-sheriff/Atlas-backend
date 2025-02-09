@@ -17,6 +17,7 @@ import os
 from mimetypes import guess_type
 from django.http import FileResponse, JsonResponse
 import logging
+from collections import defaultdict
 
 User = get_user_model()
 
@@ -151,45 +152,65 @@ def create_order(request):
     serializer = OrderSerializer(data=request.data)
     
     if serializer.is_valid():
-        # Save the Order instance first
         order = serializer.save(user=user)
-
-        # Access the order ID directly from the saved order instance
         order_id = order.order_id
 
-        # Process the products included in the order
         products_data = request.data.get('products', [])
+        processed_products = {}
+
+        # Group products by name and sum their quantities
         for item_data in products_data:
             product_name = item_data.get('product')
             quantity = item_data.get('quantity', 1)
 
-            # Validate the product and check stock
             try:
-                product = Product.objects.get(name=product_name)  # Fetch product by name
+                product = Product.objects.get(name=product_name)
             except Product.DoesNotExist:
                 return Response({"error": f"Product with name {product_name} not found."}, status=status.HTTP_404_NOT_FOUND)
 
             if product.stock < quantity:
                 return Response({"error": f"Insufficient stock for {product.name}."}, status=status.HTTP_400_BAD_REQUEST)
 
-            # Reduce stock and save the product
+            # Grouping products by name and accumulating quantity
+            if product_name in processed_products:
+                processed_products[product_name]['quantity'] += quantity
+            else:
+                processed_products[product_name] = {
+                    'product': product,
+                    'quantity': quantity,
+                    'unit_price': product.price
+                }
+
+        # Iterate through processed products to ensure no duplicates are created
+        for item in processed_products.values():
+            product = item['product']
+            quantity = item['quantity']
+            unit_price = item['unit_price']
+
+            # Deduct the stock after order creation
             product.stock -= quantity
             product.save()
 
-            # Create the OrderItem
-            OrderItem.objects.create(
-                order=order,
-                product=product,
-                quantity=quantity,
-                unit_price=product.price,  # Ensure unit_price is set
-                total_price=product.price * quantity
-            )
+            # Check if this product already exists in the order
+            existing_order_item = OrderItem.objects.filter(order=order, product=product).first()
+            if existing_order_item:
+                # Update the existing OrderItem
+                existing_order_item.quantity += quantity
+                existing_order_item.total_price = existing_order_item.unit_price * existing_order_item.quantity
+                existing_order_item.save()
+            else:
+                # Create a new OrderItem if it doesn't exist
+                OrderItem.objects.create(
+                    order=order,
+                    product=product,
+                    quantity=quantity,
+                    unit_price=unit_price,
+                    total_price=unit_price * quantity
+                )
 
-        # Return the response with the order data
         return Response(OrderSerializer(order).data, status=status.HTTP_201_CREATED)
 
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
 
 
 @api_view(['GET'])
@@ -223,19 +244,17 @@ def get_orders(request):
 
 
 @api_view(['GET'])
+
 def get_order_by_id(request, id):
     """
-    Retrieve a specific order by its ID.
+    Retrieve a specific order by its ID and return it in a structured JSON format.
     """
     try:
         order = Order.objects.get(id=id)  # Fetch the order by ID
         serializer = OrderSerializer(order)  # Serialize the order
-        return Response(serializer.data)
+        return Response({"order": serializer.data})  # Wrap the response in an "order" key
     except Order.DoesNotExist:
         return Response({"error": "Order not found"}, status=status.HTTP_404_NOT_FOUND)
-
-
-
 
 logger = logging.getLogger(__name__)
 
@@ -260,3 +279,8 @@ def image_view(request, image_name: str):
     except Exception as e:
         logger.error(f"Error serving image {image_name}: {e}")
         return JsonResponse({'error': 'An unexpected error occurred'}, status=500)
+    
+
+ # Add the new view to the URL patterns
+
+ 

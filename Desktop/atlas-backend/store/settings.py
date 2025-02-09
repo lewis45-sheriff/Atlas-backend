@@ -10,7 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
-import environ
+import environ ;
 import os
 from pathlib import Path
 
@@ -18,8 +18,11 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 # settings.py
 
+import os
+
 MEDIA_URL = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+MEDIA_ROOT = os.path.join(BASE_DIR, 'products')
+
 
 
 # Quick-start development settings - unsuitable for production
